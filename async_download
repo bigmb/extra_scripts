@@ -1,0 +1,41 @@
+#!/usr/bin/python3.10
+
+import asyncio
+import asyncssh
+import logging
+import os
+logging.basicConfig(level='DEBUG')
+
+async def scp_recursive(src_dir, dst_dir, conn):
+    """
+    Recursively copy files from `src_dir` to `dst_dir` using scp over SSH.
+    `conn` is an established SSH connection.
+    """
+    # create the destination directory on the remote host if it doesn't exist
+    cmd = f'mkdir -p "{dst_dir}"'
+    await conn.run(cmd)
+
+    # list all files and directories in the source directory
+    files = await asyncio.to_thread(os.listdir, src_dir)
+
+    # loop over all files and directories in the source directory
+    for file in files:
+        src_path = os.path.join(src_dir, file)
+        dst_path = os.path.join(dst_dir, file)
+
+        # if the current file is a directory, recursively copy it
+        if os.path.isdir(src_path):
+            await scp_recursive(src_path, dst_path, conn)
+        # if the current file is a regular file, copy it using scp
+        elif os.path.isfile(src_path):
+            async with conn.start_scp(dst_path) as scp:
+                await scp.send_file(src_path)
+
+# main function
+async def main():
+    async with asyncssh.connect('localhost',port=5622,username='malav',password='password',known_hosts=None, client_keys=None) as conn:
+        await scp_recursive('/home/malav/thumbnails','/home/winnow/files_download', conn)
+
+# run the main function
+if __name__ =='__main__':
+    asyncio.run(main())
